@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Онлайн Кнопка - Реальное время</title>
+    <title>🎯 Онлайн Кнопка - Обратный отсчет</title>
     <style>
         * {
             margin: 0;
@@ -46,6 +46,14 @@
             padding: 30px;
         }
         
+        .countdown-timer {
+            font-size: 3em;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            color: #e74c3c;
+        }
+        
         #blackSquare {
             width: 200px;
             height: 200px;
@@ -81,6 +89,7 @@
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
+            width: 100%;
         }
         
         #clickButton:hover:not(:disabled) {
@@ -140,20 +149,29 @@
             font-size: 0.9em;
             color: #e67e22;
         }
+        
+        .game-info {
+            text-align: center;
+            margin: 15px 0;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🎯 Онлайн Кнопка</h1>
-            <p>Реальное время • WebSocket</p>
+            <p>Обратный отсчет • Реальное время</p>
         </div>
         
         <div class="content">
+            <div class="countdown-timer" id="countdown">30</div>
+            <div class="game-info" id="gameInfo">Подготовка...</div>
+            
             <div id="blackSquare"></div>
             
             <div class="button-container">
-                <button id="clickButton">Нажми меня первым!</button>
+                <button id="clickButton" disabled>⏳ Ожидайте начала...</button>
             </div>
             
             <div class="status-panel">
@@ -168,16 +186,14 @@
             <div class="winner-message" id="winnerMessage"></div>
             
             <div class="instructions">
-                <p><strong>Как работает:</strong> Откройте эту страницу на нескольких устройствах. Только первый нажавший увидит черный квадрат!</p>
+                <p><strong>Как работает:</strong> Ждем обратный отсчет → Кнопка активируется → Только первый нажавший побеждает!</p>
             </div>
         </div>
     </div>
 
-    <!-- Socket.io клиент -->
     <script src="/socket.io/socket.io.js"></script>
     
     <script>
-        // Элементы DOM
         const clickButton = document.getElementById('clickButton');
         const blackSquare = document.getElementById('blackSquare');
         const status = document.getElementById('status');
@@ -185,13 +201,13 @@
         const onlineCount = document.getElementById('onlineCount');
         const connectionStatus = document.getElementById('connectionStatus');
         const connectionDot = document.getElementById('connectionDot');
+        const countdown = document.getElementById('countdown');
+        const gameInfo = document.getElementById('gameInfo');
         
-        // Подключаемся к серверу
         const socket = io();
         let userId = null;
         let userName = null;
         
-        // Обработчики событий
         socket.on('connect', () => {
             updateConnection(true);
             status.textContent = 'Подключено к серверу';
@@ -205,49 +221,75 @@
         socket.on('initialState', (data) => {
             userId = data.userId;
             userName = data.userName;
-            updateButtonState(data.buttonState);
+            updateGameState(data.gameState);
             onlineCount.textContent = `${data.onlineCount} пользователей онлайн`;
-            status.textContent = 'Готово! Кнопка доступна';
         });
         
-        socket.on('buttonClicked', (state) => {
-            updateButtonState(state);
+        socket.on('gameStateUpdate', (state) => {
+            updateGameState(state);
         });
         
-        socket.on('buttonReset', (state) => {
-            updateButtonState(state);
+        socket.on('buttonClicked', (buttonState) => {
+            updateButtonState(buttonState);
         });
         
         socket.on('onlineUpdate', (count) => {
             onlineCount.textContent = `${count} пользователей онлайн`;
         });
         
-        // Обработчик нажатия кнопки
         clickButton.addEventListener('click', () => {
             socket.emit('buttonClick', { userId, userName });
         });
         
-    function updateButtonState(state) {
-    if (state.clicked) {
-        clickButton.disabled = true;
-        
-        // ЧЕРНЫЙ КВАДРАТ ТОЛЬКО У ПОБЕДИТЕЛЯ!
-        if (state.winnerId === userId) {
-            blackSquare.classList.add('visible');
-            winnerMessage.textContent = '🎉 ПОЗДРАВЛЯЕМ! Вы были первым!';
-            status.textContent = 'Вы - победитель! Черный квадрат только у вас!';
-        } else {
-            blackSquare.classList.remove('visible');
-            winnerMessage.textContent = `Кнопка нажата пользователем: ${state.winnerName}`;
-            status.textContent = 'Кнопка заблокирована. Победитель уже определен!';
+        function updateGameState(state) {
+            countdown.textContent = state.countdown;
+            
+            switch(state.status) {
+                case 'waiting':
+                    gameInfo.textContent = '⏳ Ожидаем игроков...';
+                    clickButton.disabled = true;
+                    clickButton.textContent = '⏳ Ожидайте начала...';
+                    countdown.style.display = 'none';
+                    break;
+                    
+                case 'countdown':
+                    gameInfo.textContent = '🚀 Кнопка скоро активируется!';
+                    clickButton.disabled = true;
+                    clickButton.textContent = `⏳ Доступ через ${state.countdown}с...`;
+                    countdown.style.display = 'block';
+                    countdown.style.color = '#e74c3c';
+                    break;
+                    
+                case 'active':
+                    gameInfo.textContent = '🎯 КНОПКА АКТИВНА! ЖМИ БЫСТРЕЕ!';
+                    clickButton.disabled = false;
+                    clickButton.textContent = '🎮 НАЖМИ МЕНЯ ПЕРВЫМ! 🚀';
+                    countdown.style.display = 'none';
+                    break;
+                    
+                case 'finished':
+                    gameInfo.textContent = '🏆 Игра завершена!';
+                    clickButton.disabled = true;
+                    clickButton.textContent = '⏳ Следующий раунд скоро...';
+                    countdown.style.display = 'none';
+                    updateButtonState(state.buttonState);
+                    break;
+            }
         }
-    } else {
-        clickButton.disabled = false;
-        blackSquare.classList.remove('visible');
-        winnerMessage.textContent = '';
-        status.textContent = 'Кнопка доступна для нажатия';
-    }
-}
+        
+        function updateButtonState(state) {
+            if (state.clicked) {
+                if (state.winnerId === userId) {
+                    blackSquare.classList.add('visible');
+                    winnerMessage.textContent = `🎉 ПОЗДРАВЛЯЕМ! Вы победили!`;
+                    status.textContent = '🏆 Вы - чемпион этого раунда!';
+                } else {
+                    blackSquare.classList.remove('visible');
+                    winnerMessage.textContent = `Победитель: ${state.winnerName}`;
+                    status.textContent = 'В следующем раунде повезет больше!';
+                }
+            }
+        }
         
         function updateConnection(connected) {
             if (connected) {
@@ -258,11 +300,6 @@
                 connectionDot.className = 'dot disconnected';
             }
         }
-        
-        // Для тестирования - сброс состояния
-        window.resetGame = function() {
-            fetch('/api/reset', { method: 'POST' });
-        };
     </script>
 </body>
 </html>
