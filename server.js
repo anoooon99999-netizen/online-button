@@ -10,31 +10,50 @@ const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
 
-// Глобальное состояние
+// Состояние игры
 let gameState = {
-    status: 'waiting',
-    countdown: 30,
-    buttonState: {
-        clicked: false,
-        winnerId: null,
-        winnerName: null,
-        timestamp: null
-    }
+    status: 'waiting', // waiting, countdown, active, finished, chat
+    countdown: 10,
+    buttons: [],
+    correctButtonId: null,
+    winner: null,
+    messages: []
 };
 
 let onlineUsers = new Map();
 let countdownInterval = null;
 
-// Статические файлы
-app.use(express.static(path.join(__dirname)));
+// Генерируем кнопки
+function generateButtons() {
+    const buttons = [];
+    const correctIndex = Math.floor(Math.random() * 6); // 0-5
+    
+    for (let i = 0; i < 6; i++) {
+        buttons.push({
+            id: `btn_${i}`,
+            text: i === correctIndex ? '🎯 Верная кнопка' : `Кнопка ${i + 1}`,
+            isCorrect: i === correctIndex,
+            visible: true
+        });
+    }
+    
+    return { buttons, correctButtonId: `btn_${correctIndex}` };
+}
 
-// Функция старта обратного отсчета
-function startCountdown() {
-    gameState.status = 'countdown';
-    gameState.countdown = 30;
+// Старт игры
+function startGame() {
+    const { buttons, correctButtonId } = generateButtons();
+    gameState = {
+        status: 'countdown',
+        countdown: 10,
+        buttons,
+        correctButtonId,
+        winner: null,
+        messages: []
+    };
     
     io.emit('gameStateUpdate', gameState);
-    console.log('🚀 Starting countdown...');
+    console.log('🎮 New game started! Correct button:', correctButtonId);
     
     countdownInterval = setInterval(() => {
         gameState.countdown--;
@@ -44,41 +63,22 @@ function startCountdown() {
             clearInterval(countdownInterval);
             gameState.status = 'active';
             io.emit('gameStateUpdate', gameState);
-            console.log('🎯 Button activated!');
+            console.log('🎯 Buttons activated!');
         }
     }, 1000);
 }
 
-// Функция сброса игры
+// Сброс игры
 function resetGame() {
     clearInterval(countdownInterval);
-    gameState = {
-        status: 'waiting',
-        countdown: 30,
-        buttonState: {
-            clicked: false,
-            winnerId: null,
-            winnerName: null,
-            timestamp: null
-        }
-    };
-    io.emit('gameStateUpdate', gameState);
-    console.log('🔄 Game reset');
-    
-    // Автоматически запускаем новый отсчет через 5 секунд
-    setTimeout(startCountdown, 5000);
+    setTimeout(startGame, 5000);
 }
 
-// API
-app.get('/api/state', (req, res) => {
-    res.json(gameState);
-});
+// Middleware
+app.use(express.static(path.join(__dirname)));
+app.use(express.json());
 
-app.post('/api/reset', (req, res) => {
-    resetGame();
-    res.json({ success: true });
-});
-
+// Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -100,9 +100,9 @@ io.on('connection', (socket) => {
         onlineCount: onlineUsers.size
     });
     
-    // Если игра еще не началась - запускаем
+    // Если игра не активна - запускаем
     if (gameState.status === 'waiting') {
-        startCountdown();
+        startGame();
     }
     
     io.emit('onlineUpdate', onlineUsers.size);
@@ -110,21 +110,52 @@ io.on('connection', (socket) => {
     // Обработка нажатия кнопки
     socket.on('buttonClick', (data) => {
         const user = onlineUsers.get(socket.id);
+        const button = gameState.buttons.find(btn => btn.id === data.buttonId);
         
-        if (gameState.status === 'active' && !gameState.buttonState.clicked && user) {
-            gameState.buttonState = {
-                clicked: true,
-                winnerId: user.userId,
-                winnerName: user.userName,
+        if (gameState.status === 'active' && button && button.visible && user) {
+            if (button.isCorrect) {
+                // Правильная кнопка!
+                gameState.status = 'chat';
+                gameState.winner = {
+                    userId: user.userId,
+                    userName: user.userName,
+                    timestamp: Date.now()
+                };
+                
+                // Скрываем верную кнопку
+                button.visible = false;
+                
+                io.emit('correctButtonClicked', {
+                    winner: gameState.winner,
+                    updatedButtons: gameState.buttons
+                });
+                
+                console.log(`🏆 Winner found: ${user.userName}`);
+                
+                // Автосброс через 30 секунд
+                setTimeout(resetGame, 30000);
+            } else {
+                // Неправильная кнопка
+                socket.emit('wrongButton');
+                console.log(`❌ Wrong button clicked by: ${user.userName}`);
+            }
+        }
+    });
+    
+    // Обработка сообщений чата
+    socket.on('sendMessage', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (user && gameState.status === 'chat') {
+            const message = {
+                id: uuidv4(),
+                userId: user.userId,
+                userName: user.userName,
+                text: data.text,
                 timestamp: Date.now()
             };
-            gameState.status = 'finished';
             
-            io.emit('buttonClicked', gameState.buttonState);
-            console.log(`🏆 Winner: ${user.userName}`);
-            
-            // Автосброс через 10 секунд
-            setTimeout(resetGame, 10000);
+            gameState.messages.push(message);
+            io.emit('newMessage', message);
         }
     });
     
@@ -137,5 +168,4 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server started on port ${PORT}`);
-    console.log(`📱 URL: ${process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`}`);
 });
