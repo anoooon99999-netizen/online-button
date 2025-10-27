@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Онлайн Кнопка - Обратный отсчет</title>
+    <title>🎯 Найди верную кнопку</title>
     <style>
         * {
             margin: 0;
@@ -23,7 +23,7 @@
         
         .container {
             width: 100%;
-            max-width: 500px;
+            max-width: 600px;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
@@ -33,81 +33,125 @@
         .header {
             background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
             color: white;
-            padding: 30px;
+            padding: 25px;
             text-align: center;
         }
         
         h1 {
-            font-size: 2em;
+            font-size: 1.8em;
             margin-bottom: 10px;
         }
         
         .content {
-            padding: 30px;
+            padding: 25px;
         }
         
         .countdown-timer {
-            font-size: 3em;
+            font-size: 2.5em;
             font-weight: bold;
             text-align: center;
-            margin: 20px 0;
+            margin: 15px 0;
             color: #e74c3c;
         }
         
-        #blackSquare {
-            width: 200px;
-            height: 200px;
-            background: black;
-            margin: 0 auto 30px;
-            border-radius: 15px;
-            display: none;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        
-        #blackSquare.visible {
-            display: block;
-            animation: appear 0.5s ease;
-        }
-        
-        @keyframes appear {
-            0% { transform: scale(0); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        
-        .button-container {
-            margin: 30px 0;
+        .game-info {
             text-align: center;
+            margin: 15px 0;
+            font-weight: bold;
+            font-size: 1.1em;
         }
         
-        #clickButton {
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-            color: white;
-            border: none;
-            padding: 20px 50px;
-            font-size: 1.3em;
+        .buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .game-button {
+            padding: 20px;
+            font-size: 1.1em;
             font-weight: bold;
-            border-radius: 50px;
+            border: none;
+            border-radius: 15px;
             cursor: pointer;
             transition: all 0.3s ease;
-            width: 100%;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
         }
         
-        #clickButton:hover:not(:disabled) {
+        .game-button:hover:not(:disabled) {
             transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(231, 76, 60, 0.4);
+            box-shadow: 0 8px 15px rgba(231, 76, 60, 0.4);
         }
         
-        #clickButton:disabled {
+        .game-button:disabled {
             background: #95a5a6;
             cursor: not-allowed;
             transform: none;
         }
         
+        .game-button.hidden {
+            display: none;
+        }
+        
+        .chat-section {
+            display: none;
+            margin-top: 20px;
+            border-top: 2px solid #3498db;
+            padding-top: 20px;
+        }
+        
+        .chat-messages {
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .message-user {
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        
+        .chat-input button {
+            padding: 12px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
         .status-panel {
             background: #f8f9fa;
-            padding: 20px;
+            padding: 15px;
             border-radius: 10px;
-            margin: 20px 0;
+            margin: 15px 0;
             text-align: center;
         }
         
@@ -115,63 +159,55 @@
             font-size: 1.2em;
             font-weight: bold;
             color: #e74c3c;
-            margin: 15px 0;
+            margin: 10px 0;
         }
         
         .online-info {
             color: #27ae60;
             font-weight: bold;
-            margin: 10px 0;
+            margin: 8px 0;
         }
         
         .connection-status {
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 10px 0;
+            margin: 8px 0;
         }
         
         .dot {
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            margin-right: 8px;
+            margin-right: 6px;
         }
         
         .connected { background: #27ae60; }
         .disconnected { background: #e74c3c; }
-        
-        .instructions {
-            background: #fff9e6;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            font-size: 0.9em;
-            color: #e67e22;
-        }
-        
-        .game-info {
-            text-align: center;
-            margin: 15px 0;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 Онлайн Кнопка</h1>
-            <p>Обратный отсчет • Реальное время</p>
+            <h1>🎯 Найди верную кнопку</h1>
+            <p>Только одна кнопка правильная!</p>
         </div>
         
         <div class="content">
-            <div class="countdown-timer" id="countdown">30</div>
+            <div class="countdown-timer" id="countdown">10</div>
             <div class="game-info" id="gameInfo">Подготовка...</div>
             
-            <div id="blackSquare"></div>
+            <div class="buttons-grid" id="buttonsGrid">
+                <!-- Кнопки будут добавлены через JavaScript -->
+            </div>
             
-            <div class="button-container">
-                <button id="clickButton" disabled>⏳ Ожидайте начала...</button>
+            <div class="chat-section" id="chatSection">
+                <div class="winner-message" id="winnerMessage"></div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input">
+                    <input type="text" id="messageInput" placeholder="Напишите сообщение...">
+                    <button onclick="sendMessage()">Отправить</button>
+                </div>
             </div>
             
             <div class="status-panel">
@@ -182,32 +218,28 @@
                     <span id="connectionStatus">Соединение...</span>
                 </div>
             </div>
-            
-            <div class="winner-message" id="winnerMessage"></div>
-            
-            <div class="instructions">
-                <p><strong>Как работает:</strong> Ждем обратный отсчет → Кнопка активируется → Только первый нажавший побеждает!</p>
-            </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    
     <script>
-        const clickButton = document.getElementById('clickButton');
-        const blackSquare = document.getElementById('blackSquare');
+        const buttonsGrid = document.getElementById('buttonsGrid');
+        const chatSection = document.getElementById('chatSection');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const countdown = document.getElementById('countdown');
+        const gameInfo = document.getElementById('gameInfo');
         const status = document.getElementById('status');
         const winnerMessage = document.getElementById('winnerMessage');
         const onlineCount = document.getElementById('onlineCount');
         const connectionStatus = document.getElementById('connectionStatus');
         const connectionDot = document.getElementById('connectionDot');
-        const countdown = document.getElementById('countdown');
-        const gameInfo = document.getElementById('gameInfo');
         
         const socket = io();
         let userId = null;
         let userName = null;
         
+        // События Socket.io
         socket.on('connect', () => {
             updateConnection(true);
             status.textContent = 'Подключено к серверу';
@@ -229,66 +261,96 @@
             updateGameState(state);
         });
         
-        socket.on('buttonClicked', (buttonState) => {
-            updateButtonState(buttonState);
+        socket.on('correctButtonClicked', (data) => {
+            updateButtons(data.updatedButtons);
+            showChat(data.winner);
+        });
+        
+        socket.on('wrongButton', () => {
+            gameInfo.textContent = '❌ Не та кнопка! Пробуй другую!';
+            gameInfo.style.color = '#e74c3c';
+        });
+        
+        socket.on('newMessage', (message) => {
+            addMessageToChat(message);
         });
         
         socket.on('onlineUpdate', (count) => {
             onlineCount.textContent = `${count} пользователей онлайн`;
         });
         
-        clickButton.addEventListener('click', () => {
-            socket.emit('buttonClick', { userId, userName });
-        });
-        
+        // Функции
         function updateGameState(state) {
             countdown.textContent = state.countdown;
             
             switch(state.status) {
                 case 'waiting':
-                    gameInfo.textContent = '⏳ Ожидаем игроков...';
-                    clickButton.disabled = true;
-                    clickButton.textContent = '⏳ Ожидайте начала...';
+                    gameInfo.textContent = '⏳ Ожидаем начала...';
                     countdown.style.display = 'none';
                     break;
                     
                 case 'countdown':
-                    gameInfo.textContent = '🚀 Кнопка скоро активируется!';
-                    clickButton.disabled = true;
-                    clickButton.textContent = `⏳ Доступ через ${state.countdown}с...`;
+                    gameInfo.textContent = '🚀 Игра скоро начнется!';
+                    gameInfo.style.color = '#2c3e50';
                     countdown.style.display = 'block';
                     countdown.style.color = '#e74c3c';
                     break;
                     
                 case 'active':
-                    gameInfo.textContent = '🎯 КНОПКА АКТИВНА! ЖМИ БЫСТРЕЕ!';
-                    clickButton.disabled = false;
-                    clickButton.textContent = '🎮 НАЖМИ МЕНЯ ПЕРВЫМ! 🚀';
+                    gameInfo.textContent = '🎯 ИЩИ ВЕРНУЮ КНОПКУ!';
+                    gameInfo.style.color = '#27ae60';
                     countdown.style.display = 'none';
+                    updateButtons(state.buttons);
                     break;
                     
-                case 'finished':
-                    gameInfo.textContent = '🏆 Игра завершена!';
-                    clickButton.disabled = true;
-                    clickButton.textContent = '⏳ Следующий раунд скоро...';
-                    countdown.style.display = 'none';
-                    updateButtonState(state.buttonState);
+                case 'chat':
+                    showChat(state.winner);
                     break;
             }
         }
         
-        function updateButtonState(state) {
-            if (state.clicked) {
-                if (state.winnerId === userId) {
-                    blackSquare.classList.add('visible');
-                    winnerMessage.textContent = `🎉 ПОЗДРАВЛЯЕМ! Вы победили!`;
-                    status.textContent = '🏆 Вы - чемпион этого раунда!';
-                } else {
-                    blackSquare.classList.remove('visible');
-                    winnerMessage.textContent = `Победитель: ${state.winnerName}`;
-                    status.textContent = 'В следующем раунде повезет больше!';
+        function updateButtons(buttons) {
+            buttonsGrid.innerHTML = '';
+            buttons.forEach(button => {
+                if (button.visible) {
+                    const btn = document.createElement('button');
+                    btn.className = 'game-button';
+                    btn.textContent = button.text;
+                    btn.onclick = () => socket.emit('buttonClick', { buttonId: button.id });
+                    buttonsGrid.appendChild(btn);
                 }
+            });
+        }
+        
+        function showChat(winner) {
+            chatSection.style.display = 'block';
+            buttonsGrid.style.display = 'none';
+            gameInfo.textContent = '💬 Чат открыт! Общайтесь!';
+            
+            if (winner.userId === userId) {
+                winnerMessage.textContent = '🎉 ВЫ НАШЛИ ВЕРНУЮ КНОПКУ!';
+            } else {
+                winnerMessage.textContent = `🏆 ${winner.userName} нашел верную кнопку!`;
             }
+        }
+        
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text) {
+                socket.emit('sendMessage', { text });
+                messageInput.value = '';
+            }
+        }
+        
+        function addMessageToChat(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.innerHTML = `
+                <span class="message-user">${message.userName}:</span>
+                <span>${message.text}</span>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
         function updateConnection(connected) {
@@ -300,6 +362,11 @@
                 connectionDot.className = 'dot disconnected';
             }
         }
+        
+        // Отправка сообщения по Enter
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
     </script>
 </body>
 </html>
