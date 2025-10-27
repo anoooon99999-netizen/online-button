@@ -79,8 +79,9 @@ io.on('connection', (socket) => {
                 timestamp: Date.now()
             };
             
-            // Уведомляем всех пользователей
-            io.emit('buttonClicked', buttonState);
+         // Уведомляем всех пользователей КТО победитель
+io.emit('buttonClicked', buttonState);
+console.log(`🎯 Победитель: ${user.userName}`);
             console.log(`Кнопка нажата пользователем: ${user.userName}`);
         }
     });
