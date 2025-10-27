@@ -227,26 +227,27 @@
             socket.emit('buttonClick', { userId, userName });
         });
         
-        // Функции
-        function updateButtonState(state) {
-            if (state.clicked) {
-                clickButton.disabled = true;
-                blackSquare.classList.add('visible');
-                
-                if (state.winnerId === userId) {
-                    winnerMessage.textContent = '🎉 ПОЗДРАВЛЯЕМ! Вы были первым!';
-                    status.textContent = 'Вы - победитель!';
-                } else {
-                    winnerMessage.textContent = `Кнопка нажата пользователем: ${state.winnerName}`;
-                    status.textContent = 'Кнопка заблокирована';
-                }
-            } else {
-                clickButton.disabled = false;
-                blackSquare.classList.remove('visible');
-                winnerMessage.textContent = '';
-                status.textContent = 'Кнопка доступна для нажатия';
-            }
+    function updateButtonState(state) {
+    if (state.clicked) {
+        clickButton.disabled = true;
+        
+        // ЧЕРНЫЙ КВАДРАТ ТОЛЬКО У ПОБЕДИТЕЛЯ!
+        if (state.winnerId === userId) {
+            blackSquare.classList.add('visible');
+            winnerMessage.textContent = '🎉 ПОЗДРАВЛЯЕМ! Вы были первым!';
+            status.textContent = 'Вы - победитель! Черный квадрат только у вас!';
+        } else {
+            blackSquare.classList.remove('visible');
+            winnerMessage.textContent = `Кнопка нажата пользователем: ${state.winnerName}`;
+            status.textContent = 'Кнопка заблокирована. Победитель уже определен!';
         }
+    } else {
+        clickButton.disabled = false;
+        blackSquare.classList.remove('visible');
+        winnerMessage.textContent = '';
+        status.textContent = 'Кнопка доступна для нажатия';
+    }
+}
         
         function updateConnection(connected) {
             if (connected) {
