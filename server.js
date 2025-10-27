@@ -10,69 +10,14 @@ const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
 
-// Состояние игры
+// Глобальное состояние
 let gameState = {
-    status: 'waiting', // waiting, countdown, active, finished, chat
-    countdown: 10,
-    buttons: [],
-    correctButtonId: null,
-    winner: null,
-    messages: []
+    status: 'active',
+    publicButtons: [],
+    privateChats: new Map() // chatId -> { users: [], messages: [], buttonId }
 };
 
 let onlineUsers = new Map();
-let countdownInterval = null;
-
-// Генерируем кнопки
-function generateButtons() {
-    const buttons = [];
-    const correctIndex = Math.floor(Math.random() * 6); // 0-5
-    
-    for (let i = 0; i < 6; i++) {
-        buttons.push({
-            id: `btn_${i}`,
-            text: i === correctIndex ? '🎯 Верная кнопка' : `Кнопка ${i + 1}`,
-            isCorrect: i === correctIndex,
-            visible: true
-        });
-    }
-    
-    return { buttons, correctButtonId: `btn_${correctIndex}` };
-}
-
-// Старт игры
-function startGame() {
-    const { buttons, correctButtonId } = generateButtons();
-    gameState = {
-        status: 'countdown',
-        countdown: 10,
-        buttons,
-        correctButtonId,
-        winner: null,
-        messages: []
-    };
-    
-    io.emit('gameStateUpdate', gameState);
-    console.log('🎮 New game started! Correct button:', correctButtonId);
-    
-    countdownInterval = setInterval(() => {
-        gameState.countdown--;
-        io.emit('gameStateUpdate', gameState);
-        
-        if (gameState.countdown <= 0) {
-            clearInterval(countdownInterval);
-            gameState.status = 'active';
-            io.emit('gameStateUpdate', gameState);
-            console.log('🎯 Buttons activated!');
-        }
-    }, 1000);
-}
-
-// Сброс игры
-function resetGame() {
-    clearInterval(countdownInterval);
-    setTimeout(startGame, 5000);
-}
 
 // Middleware
 app.use(express.static(path.join(__dirname)));
@@ -90,76 +35,217 @@ io.on('connection', (socket) => {
     const userId = uuidv4();
     const userName = `User_${Math.random().toString(36).substr(2, 5)}`;
     
-    onlineUsers.set(socket.id, { userId, userName });
+    onlineUsers.set(socket.id, { userId, userName, socketId: socket.id });
     
     // Отправляем текущее состояние
     socket.emit('initialState', {
-        gameState,
+        gameState: {
+            status: gameState.status,
+            publicButtons: gameState.publicButtons
+        },
         userId,
         userName,
         onlineCount: onlineUsers.size
     });
     
-    // Если игра не активна - запускаем
-    if (gameState.status === 'waiting') {
-        startGame();
-    }
-    
     io.emit('onlineUpdate', onlineUsers.size);
     
-    // Обработка нажатия кнопки
-    socket.on('buttonClick', (data) => {
+    // Создание новой кнопки
+    socket.on('createButton', (data) => {
         const user = onlineUsers.get(socket.id);
-        const button = gameState.buttons.find(btn => btn.id === data.buttonId);
+        if (!user) return;
         
-        if (gameState.status === 'active' && button && button.visible && user) {
-            if (button.isCorrect) {
-                // Правильная кнопка!
-                gameState.status = 'chat';
-                gameState.winner = {
-                    userId: user.userId,
-                    userName: user.userName,
-                    timestamp: Date.now()
-                };
-                
-                // Скрываем верную кнопку
-                button.visible = false;
-                
-                io.emit('correctButtonClicked', {
-                    winner: gameState.winner,
-                    updatedButtons: gameState.buttons
-                });
-                
-                console.log(`🏆 Winner found: ${user.userName}`);
-                
-                // Автосброс через 30 секунд
-                setTimeout(resetGame, 30000);
-            } else {
-                // Неправильная кнопка
-                socket.emit('wrongButton');
-                console.log(`❌ Wrong button clicked by: ${user.userName}`);
-            }
-        }
+        const buttonId = uuidv4();
+        const newButton = {
+            id: buttonId,
+            creatorId: user.userId,
+            creatorName: user.userName,
+            title: data.title || `Кнопка от ${user.userName}`,
+            description: data.description || 'Присоединяйтесь ко мне в чат!',
+            userCount: 1,
+            maxUsers: data.maxUsers || 10,
+            createdAt: Date.now(),
+            users: [user.userId]
+        };
+        
+        // Создаем приватный чат для этой кнопки
+        const chatId = uuidv4();
+        gameState.privateChats.set(chatId, {
+            buttonId: buttonId,
+            users: [user.userId],
+            messages: [],
+            creatorId: user.userId
+        });
+        
+        gameState.publicButtons.push(newButton);
+        
+        // Присоединяем создателя к комнате
+        socket.join(chatId);
+        
+        io.emit('buttonCreated', newButton);
+        console.log(`🆕 New button created by ${user.userName}: ${newButton.title}`);
     });
     
-    // Обработка сообщений чата
-    socket.on('sendMessage', (data) => {
+    // Присоединение к существующей кнопке
+    socket.on('joinButton', (data) => {
         const user = onlineUsers.get(socket.id);
-        if (user && gameState.status === 'chat') {
-            const message = {
-                id: uuidv4(),
-                userId: user.userId,
-                userName: user.userName,
-                text: data.text,
-                timestamp: Date.now()
-            };
-            
-            gameState.messages.push(message);
-            io.emit('newMessage', message);
+        const button = gameState.publicButtons.find(b => b.id === data.buttonId);
+        
+        if (!user || !button) return;
+        
+        // Проверяем можно ли присоединиться
+        if (button.users.length >= button.maxUsers) {
+            socket.emit('buttonFull', { buttonId: data.buttonId });
+            return;
         }
+        
+        if (button.users.includes(user.userId)) {
+            socket.emit('alreadyJoined', { buttonId: data.buttonId });
+            return;
+        }
+        
+        // Находим чат для этой кнопки
+        let targetChat = null;
+        for (let [chatId, chat] of gameState.privateChats) {
+            if (chat.buttonId === data.buttonId) {
+                targetChat = { chatId, chat };
+                break;
+            }
+        }
+        
+        if (!targetChat) return;
+        
+        // Добавляем пользователя в кнопку и чат
+        button.users.push(user.userId);
+        button.userCount = button.users.length;
+        targetChat.chat.users.push(user.userId);
+        
+        // Присоединяем пользователя к комнате чата
+        socket.join(targetChat.chatId);
+        
+        // Уведомляем всех в чате о новом пользователе
+        io.to(targetChat.chatId).emit('userJoined', {
+            userId: user.userId,
+            userName: user.userName,
+            userCount: button.userCount
+        });
+        
+        // Отправляем историю сообщений новому пользователю
+        socket.emit('chatHistory', {
+            buttonId: data.buttonId,
+            messages: targetChat.chat.messages,
+            users: button.users.map(userId => {
+                const user = Array.from(onlineUsers.values()).find(u => u.userId === userId);
+                return user ? user.userName : 'Unknown';
+            })
+        });
+        
+        io.emit('buttonUpdated', button);
+        console.log(`👥 ${user.userName} joined button: ${button.title}`);
+    });
+    
+    // Отправка сообщения в приватный чат
+    socket.on('sendPrivateMessage', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        // Находим чат где находится пользователь
+        let targetChat = null;
+        for (let [chatId, chat] of gameState.privateChats) {
+            if (chat.users.includes(user.userId)) {
+                targetChat = { chatId, chat };
+                break;
+            }
+        }
+        
+        if (!targetChat) return;
+        
+        const message = {
+            id: uuidv4(),
+            userId: user.userId,
+            userName: user.userName,
+            text: data.text,
+            timestamp: Date.now(),
+            isSystem: false
+        };
+        
+        targetChat.chat.messages.push(message);
+        
+        // Отправляем сообщение только участникам этого чата
+        io.to(targetChat.chatId).emit('newPrivateMessage', message);
+    });
+    
+    // Покидание кнопки/чата
+    socket.on('leaveButton', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        // Находим кнопку и чат
+        const button = gameState.publicButtons.find(b => b.users.includes(user.userId));
+        if (!button) return;
+        
+        let targetChat = null;
+        for (let [chatId, chat] of gameState.privateChats) {
+            if (chat.buttonId === button.id) {
+                targetChat = { chatId, chat };
+                break;
+            }
+        }
+        
+        if (!targetChat) return;
+        
+        // Удаляем пользователя
+        button.users = button.users.filter(id => id !== user.userId);
+        button.userCount = button.users.length;
+        targetChat.chat.users = targetChat.chat.users.filter(id => id !== user.userId);
+        
+        // Покидаем комнату
+        socket.leave(targetChat.chatId);
+        
+        // Уведомляем остальных
+        io.to(targetChat.chatId).emit('userLeft', {
+            userId: user.userId,
+            userName: user.userName,
+            userCount: button.userCount
+        });
+        
+        // Если кнопка пустая - удаляем её
+        if (button.users.length === 0) {
+            gameState.publicButtons = gameState.publicButtons.filter(b => b.id !== button.id);
+            gameState.privateChats.delete(targetChat.chatId);
+            io.emit('buttonRemoved', { buttonId: button.id });
+        } else {
+            io.emit('buttonUpdated', button);
+        }
+        
+        console.log(`🚪 ${user.userName} left button: ${button.title}`);
     });
     
     socket.on('disconnect', () => {
+        const user = onlineUsers.get(socket.id);
+        if (user) {
+            // Автоматически покидаем все кнопки при отключении
+            const button = gameState.publicButtons.find(b => b.users.includes(user.userId));
+            if (button) {
+                // Эмулируем событие leaveButton
+                const eventData = { buttonId: button.id };
+                socket.emit('leaveButton', eventData);
+                
+                // Находим чат и уведомляем остальных
+                for (let [chatId, chat] of gameState.privateChats) {
+                    if (chat.buttonId === button.id) {
+                        io.to(chatId).emit('userLeft', {
+                            userId: user.userId,
+                            userName: user.userName,
+                            userCount: button.users.length - 1,
+                            isDisconnect: true
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        
         onlineUsers.delete(socket.id);
         io.emit('onlineUpdate', onlineUsers.size);
         console.log('❌ User disconnected:', socket.id);
