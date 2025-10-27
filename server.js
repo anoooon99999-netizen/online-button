@@ -1,144 +1,87 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
-
 const PORT = process.env.PORT || 3000;
 
-// Глобальное состояние
-let gameState = {
-    status: 'waiting', // waiting, countdown, active, finished
-    countdown: 30,
-    buttonState: {
-        clicked: false,
-        winnerId: null,
-        winnerName: null,
-        timestamp: null
-    }
-};
+// Простое логирование
+console.log('🚀 Starting Online Button Server...');
 
-let onlineUsers = new Map();
-let countdownInterval = null;
+// Раздаем статические файлы
+app.use(express.static(__dirname));
 
-// Статические файлы
-app.use(express.static(path.join(__dirname)));
-
-// Функция старта обратного отсчета
-function startCountdown() {
-    gameState.status = 'countdown';
-    gameState.countdown = 30;
-    
-    io.emit('gameStateUpdate', gameState);
-    
-    countdownInterval = setInterval(() => {
-        gameState.countdown--;
-        io.emit('gameStateUpdate', gameState);
-        
-        if (gameState.countdown <= 0) {
-            clearInterval(countdownInterval);
-            gameState.status = 'active';
-            io.emit('gameStateUpdate', gameState);
-        }
-    }, 1000);
-}
-
-// Функция сброса игры
-function resetGame() {
-    clearInterval(countdownInterval);
-    gameState = {
-        status: 'waiting',
-        countdown: 30,
-        buttonState: {
-            clicked: false,
-            winnerId: null,
-            winnerName: null,
-            timestamp: null
-        }
-    };
-    io.emit('gameStateUpdate', gameState);
-    
-    // Автоматически запускаем новый отсчет через 5 секунд
-    setTimeout(startCountdown, 5000);
-}
-
-// API
-app.get('/api/state', (req, res) => {
-    res.json(gameState);
-});
-
-app.post('/api/reset', (req, res) => {
-    resetGame();
-    res.json({ success: true });
-});
-
+// Главная страница - ПРОСТОЙ HTML
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+  console.log('📨 Serving main page');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>🎯 Онлайн Кнопка</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 0;
+            }
+            .container {
+                background: white;
+                color: black;
+                padding: 40px;
+                border-radius: 20px;
+                max-width: 500px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            }
+            h1 {
+                color: #2c3e50;
+                margin-bottom: 20px;
+            }
+            button {
+                padding: 20px 40px;
+                font-size: 20px;
+                background: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                cursor: pointer;
+                margin: 20px 0;
+            }
+            #status {
+                margin: 20px 0;
+                padding: 15px;
+                background: #f8f9fa;
+                border-radius: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🎯 Онлайн Кнопка</h1>
+            <p>Тестовая версия - работает!</p>
+            
+            <button onclick="this.innerHTML='🎉 Нажато!'">Нажми меня</button>
+            
+            <div id="status">
+                <p>✅ Сервер запущен успешно</p>
+                <p>Ссылка: https://online-button-1.onrender.com</p>
+            </div>
+            
+            <p><strong>Следующий шаг:</strong> Добавим онлайн-синхронизацию</p>
+        </div>
+    </body>
+    </html>
+  `);
 });
 
-// Socket.io
-io.on('connection', (socket) => {
-    console.log('Новый пользователь:', socket.id);
-    
-    const userId = uuidv4();
-    const userName = `User_${Math.random().toString(36).substr(2, 5)}`;
-    
-    onlineUsers.set(socket.id, { userId, userName });
-    
-    // Отправляем текущее состояние
-    socket.emit('initialState', {
-        gameState,
-        userId,
-        userName,
-        onlineCount: onlineUsers.size
-    });
-    
-    // Если игра еще не началась и есть минимум 2 игрока - запускаем
-    if (gameState.status === 'waiting' && onlineUsers.size >= 1) {
-        startCountdown();
-    }
-    
-    io.emit('onlineUpdate', onlineUsers.size);
-    
-    // Обработка нажатия кнопки
-    socket.on('buttonClick', (data) => {
-        const user = onlineUsers.get(socket.id);
-        
-        if (gameState.status === 'active' && !gameState.buttonState.clicked && user) {
-            gameState.buttonState = {
-                clicked: true,
-                winnerId: user.userId,
-                winnerName: user.userName,
-                timestamp: Date.now()
-            };
-            gameState.status = 'finished';
-            
-            io.emit('buttonClicked', gameState.buttonState);
-            console.log(`🏆 Победитель: ${user.userName}`);
-            
-            // Автосброс через 10 секунд
-            setTimeout(resetGame, 10000);
-        }
-    });
-    
-    socket.on('disconnect', () => {
-        onlineUsers.delete(socket.id);
-        io.emit('onlineUpdate', onlineUsers.size);
-        console.log('Пользователь отключен:', socket.id);
-    });
-});
-
-// Автозапуск при старте сервера
-setTimeout(() => {
-    if (gameState.status === 'waiting') {
-        startCountdown();
-    }
-}, 2000);
-
-server.listen(PORT, () => {
-    console.log(`🚀 Сервер запущен на порту ${PORT}`);
+// Запуск сервера
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('✅ Server started on port', PORT);
+  console.log('📱 URL:', process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`);
 });
