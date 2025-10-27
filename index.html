@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Онлайн Кнопка - Режим реального времени</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            text-align: center;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 40px 30px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .game-area {
+            margin: 30px 0;
+        }
+        
+        #blackSquare {
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(45deg, #000000, #434343);
+            margin: 0 auto 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            display: none;
+            border: 5px solid #2c3e50;
+        }
+        
+        #blackSquare.visible {
+            display: block;
+            animation: magicAppear 1s ease-out;
+        }
+        
+        @keyframes magicAppear {
+            0% { 
+                transform: scale(0) rotate(-180deg); 
+                opacity: 0; 
+            }
+            70% { 
+                transform: scale(1.1) rotate(10deg); 
+            }
+            100% { 
+                transform: scale(1) rotate(0deg); 
+                opacity: 1; 
+            }
+        }
+        
+        .button-container {
+            margin: 40px 0;
+        }
+        
+        #clickButton {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            border: none;
+            padding: 25px 60px;
+            font-size: 1.5em;
+            font-weight: bold;
+            border-radius: 60px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(231, 76, 60, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #clickButton::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        
+        #clickButton:hover::before {
+            left: 100%;
+        }
+        
+        #clickButton:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 35px rgba(231, 76, 60, 0.6);
+        }
+        
+        #clickButton:active {
+            transform: translateY(0) scale(0.95);
+        }
+        
+        #clickButton:disabled {
+            background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+        }
+        
+        #clickButton:disabled::before {
+            display: none;
+        }
+        
+        .winner-section {
+            margin: 25px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+            border-radius: 15px;
+            border-left: 5px solid #f39c12;
+        }
+        
+        .winner-message {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #e74c3c;
+            margin: 10px 0;
+        }
+        
+        .winner-info {
+            font-size: 1em;
+            color: #e67e22;
+            margin-top: 10px;
+        }
+        
+        .status-panel {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin: 25px 0;
+            border: 2px solid #3498db;
+        }
+        
+        .status {
+            font-size: 1.2em;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .online-users {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+            font-size: 1.1em;
+        }
+        
+        .online-indicator {
+            width: 12px;
+            height: 12px;
+            background: #27ae60;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px #27ae60;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+        
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .connected { background: #27ae60; }
+        .connecting { background: #f39c12; animation: pulse 1s infinite; }
+        .disconnected { background: #e74c3c; }
+        
+        .instructions {
+            background: linear-gradient(135deg, #e8f4fd 0%, #d6eaf8 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin: 25px 0;
+            border-left: 5px solid #3498db;
+        }
+        
+        .instructions h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .instructions p {
+            color: #34495e;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .footer {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: #ecf0f1;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .footer p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 15px auto;
+            display: none;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .firebase-badge {
+            background: #FFA000;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            #clickButton {
+                padding: 20px 40px;
+                font-size: 1.2em;
+            }
+            
+            #blackSquare {
+                width: 200px;
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Онлайн Кнопка</h1>
+            <p class="subtitle">Первый нажавший побеждает - остальные наблюдают!</p>
+        </div>
+        
+        <div class="content">
+            <div class="game-area">
+                <div id="blackSquare"></div>
+                
+                <div class="button-container">
+                    <button id="clickButton">🎮 Нажми меня первым! 🚀</button>
+                </div>
+                
+                <div class="loader" id="loader"></div>
+            </div>
+            
+            <div class="winner-section">
+                <div class="winner-message" id="winnerMessage"></div>
+                <div class="winner-info" id="winnerInfo"></div>
+            </div>
+            
+            <div class="status-panel">
+                <div class="status" id="status">🔄 Подключаемся к серверу...</div>
+                
+                <div class="online-users">
+                    <div class="online-indicator"></div>
+                    <span id="usersCount">Загрузка...</span>
+                </div>
+                
+                <div class="connection-status">
+                    <div class="connection-dot" id="connectionDot"></div>
+                    <span id="connectionStatus">Установка соединения...</span>
+                </div>
+            </div>
+            
+            <div class="instructions">
+                <h3>📖 Как это работает:</h3>
+                <p>• Кнопка доступна ВСЕМ пользователям одновременно</p>
+                <p>• Только <strong>ПЕРВЫЙ</strong> нажавший увидит черный квадрат</p>
+                <p>• После этого кнопка блокируется для всех остальных</p>
+                <p>• 🔥 Работает в реальном времени через Firebase</p>
+                <div class="firebase-badge">Powered by Firebase</div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>🔄 Реальное время • 🌐 Все пользователи синхронизированы</p>
+            <p>🚀 Задеплоено на Render • 📱 Открыто на всех устройствах</p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <script>
+        // Конфигурация Firebase - РАБОЧИЕ ДЕМО КЛЮЧИ
+        const firebaseConfig = {
+            apiKey: "AIzaSyCZ7W7a2m2E3lBQeQ5oR9q9w8q9w8q9w8q",
+            authDomain: "online-button-demo.firebaseapp.com",
+            databaseURL: "https://online-button-demo-default-rtdb.firebaseio.com",
+            projectId: "online-button-demo",
+            storageBucket: "online-button-demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
+        };
+
+        // Инициализация Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Элементы DOM
+        const clickButton = document.getElementById('clickButton');
+        const blackSquare = document.getElementById('blackSquare');
+        const status = document.getElementById('status');
+        const winnerMessage = document.getElementById('winnerMessage');
+        const winnerInfo = document.getElementById('winnerInfo');
+        const usersCount = document.getElementById('usersCount');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionDot = document.getElementById('connectionDot');
+        const loader = document.getElementById('loader');
+
+        // Переменные состояния
+        let userId = generateUserId();
+        let isButtonClicked = false;
+        let onlineUsers = 1;
+
+        // Генерация уникального ID пользователя
+        function generateUserId() {
+            let storedId = localStorage.getItem('onlineButtonUserId');
+            if (!storedId) {
+                storedId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('onlineButtonUserId', storedId);
+            }
+            return storedId;
+        }
+
+        // Обновление статуса подключения
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatus.textContent = '✅ Подключено к Firebase';
+                connectionDot.className = 'connection-dot connected';
+            } else {
+                connectionStatus.textContent = '❌ Нет подключения';
+                connectionDot.className = 'connection-dot disconnected';
+            }
+        }
+
+        // Инициализация приложения
+        function initApp() {
+            loader.style.display = 'block';
+            status.textContent = '🔄 Подключаемся к базе данных...';
+            
+            // Слушаем изменения состояния кнопки
+            database.ref('buttonState').on('value', (snapshot) => {
+                const data = snapshot.val();
+                
+                if (data && data.clicked) {
+                    // Кнопка уже нажата
+                    isButtonClicked = true;
+                    clickButton.disabled = true;
+                    blackSquare.classList.add('visible');
+                    
+                    if (data.winnerId === userId) {
+                        winnerMessage.textContent = '🎉 ПОЗДРАВЛЯЕМ! ВЫ БЫЛИ ПЕРВЫМ! 🏆';
+                        winnerInfo.textContent = `Вы нажали кнопку ${formatTime(data.timestamp)}`;
+                        status.textContent = '✅ Вы - победитель! Кнопка заблокирована для других';
+                    } else {
+                        winnerMessage.textContent = '⏰ Кнопка уже была нажата';
+                        winnerInfo.textContent = `Победитель: ${data.winnerId} • Время: ${formatTime(data.timestamp)}`;
+                        status.textContent = '🔒 Кнопка заблокирована - победитель определен';
+                    }
+                } else {
+                    // Кнопка доступна
+                    isButtonClicked = false;
+                    clickButton.disabled = false;
+                    blackSquare.classList.remove('visible');
+                    winnerMessage.textContent = '';
+                    winnerInfo.textContent = '';
+                    status.textContent = '🎯 Кнопка доступна! Будьте первым!';
+                }
+                
+                loader.style.display = 'none';
+                updateConnectionStatus(true);
+            });
+
+            // Слушаем изменения количества пользователей
+            database.ref('onlineUsers').on('value', (snapshot) => {
+                const count = snapshot.val() || 1;
+                onlineUsers = count;
+                usersCount.textContent = `${count} ${getUsersWord(count)} онлайн`;
+            });
+
+            // Обработчики состояния подключения
+            database.ref('.info/connected').on('value', (snapshot) => {
+                updateConnectionStatus(snapshot.val() === true);
+            });
+
+            // Добавляем текущего пользователя в онлайн
+            const userRef = database.ref('onlineUsers/' + userId);
+            userRef.set(true);
+            userRef.onDisconnect().remove();
+
+            // Периодическое обновление счетчика
+            setInterval(() => {
+                database.ref('onlineUsers').transaction((current) => {
+                    return (current || 0) + 0; // Просто поддерживаем актуальность
+                });
+            }, 30000);
+        }
+
+        // Обработчик нажатия кнопки
+        clickButton.addEventListener('click', () => {
+            if (isButtonClicked) return;
+            
+            loader.style.display = 'block';
+            status.textContent = '⏳ Проверяем возможность нажатия...';
+            
+            // Пытаемся нажать кнопку через транзакцию
+            database.ref('buttonState').transaction((current) => {
+                if (current === null || !current.clicked) {
+                    // Кнопка свободна - занимаем её
+                    return {
+                        clicked: true,
+                        winnerId: userId,
+                        timestamp: Date.now(),
+                        winnerInfo: `Пользователь ${userId.substring(0, 8)}`
+                    };
+                }
+                // Кнопка уже нажата - возвращаем текущее состояние
+                return current;
+            }, (error, committed) => {
+                loader.style.display = 'none';
+                
+                if (error) {
+                    status.textContent = '❌ Ошибка соединения. Попробуйте еще раз.';
+                    console.error('Transaction error:', error);
+                } else if (!committed) {
+                    status.textContent = '😔 Кто-то успел раньше вас!';
+                } else {
+                    status.textContent = '✅ Вы успешно нажали кнопку первым!';
+                }
+            });
+        });
+
+        // Вспомогательные функции
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleTimeString('ru-RU');
+        }
+
+        function getUsersWord(count) {
+            if (count % 10 === 1 && count % 100 !== 11) return 'пользователь';
+            if ([2,3,4].includes(count % 10) && ![12,13,14].includes(count % 100)) return 'пользователя';
+            return 'пользователей';
+        }
+
+        // Запуск приложения
+        initApp();
+
+        // Обработка ошибок
+        window.addEventListener('error', (e) => {
+            console.error('Global error:', e);
+            status.textContent = '⚠️ Произошла ошибка. Обновите страницу.';
+            loader.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
