@@ -10,83 +10,121 @@ const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
 
-// Глобальное состояние кнопки
-let buttonState = {
-    clicked: false,
-    winnerId: null,
-    winnerName: null,
-    timestamp: null
-};
-
-let onlineUsers = new Map();
-
-// Статические файлы
-app.use(express.static(path.join(__dirname)));
-
-// API для получения состояния
-app.get('/api/state', (req, res) => {
-    res.json(buttonState);
-});
-
-// API для сброса состояния (для тестирования)
-app.post('/api/reset', (req, res) => {
-    buttonState = {
+// Глобальное состояние
+let gameState = {
+    status: 'waiting', // waiting, countdown, active, finished
+    countdown: 30,
+    buttonState: {
         clicked: false,
         winnerId: null,
         winnerName: null,
         timestamp: null
+    }
+};
+
+let onlineUsers = new Map();
+let countdownInterval = null;
+
+// Статические файлы
+app.use(express.static(path.join(__dirname)));
+
+// Функция старта обратного отсчета
+function startCountdown() {
+    gameState.status = 'countdown';
+    gameState.countdown = 30;
+    
+    io.emit('gameStateUpdate', gameState);
+    
+    countdownInterval = setInterval(() => {
+        gameState.countdown--;
+        io.emit('gameStateUpdate', gameState);
+        
+        if (gameState.countdown <= 0) {
+            clearInterval(countdownInterval);
+            gameState.status = 'active';
+            io.emit('gameStateUpdate', gameState);
+        }
+    }, 1000);
+}
+
+// Функция сброса игры
+function resetGame() {
+    clearInterval(countdownInterval);
+    gameState = {
+        status: 'waiting',
+        countdown: 30,
+        buttonState: {
+            clicked: false,
+            winnerId: null,
+            winnerName: null,
+            timestamp: null
+        }
     };
-    io.emit('buttonReset', buttonState);
+    io.emit('gameStateUpdate', gameState);
+    
+    // Автоматически запускаем новый отсчет через 5 секунд
+    setTimeout(startCountdown, 5000);
+}
+
+// API
+app.get('/api/state', (req, res) => {
+    res.json(gameState);
+});
+
+app.post('/api/reset', (req, res) => {
+    resetGame();
     res.json({ success: true });
 });
 
-// Главная страница
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Socket.io соединения
+// Socket.io
 io.on('connection', (socket) => {
-    console.log('Новый пользователь подключен:', socket.id);
+    console.log('Новый пользователь:', socket.id);
     
-    // Генерируем ID пользователя
     const userId = uuidv4();
     const userName = `User_${Math.random().toString(36).substr(2, 5)}`;
     
     onlineUsers.set(socket.id, { userId, userName });
     
-    // Отправляем текущее состояние новому пользователю
+    // Отправляем текущее состояние
     socket.emit('initialState', {
-        buttonState,
+        gameState,
         userId,
         userName,
         onlineCount: onlineUsers.size
     });
     
-    // Обновляем счетчик онлайн для всех
+    // Если игра еще не началась и есть минимум 2 игрока - запускаем
+    if (gameState.status === 'waiting' && onlineUsers.size >= 1) {
+        startCountdown();
+    }
+    
     io.emit('onlineUpdate', onlineUsers.size);
     
     // Обработка нажатия кнопки
     socket.on('buttonClick', (data) => {
         const user = onlineUsers.get(socket.id);
         
-        if (!buttonState.clicked && user) {
-            // Первое нажатие - устанавливаем победителя
-            buttonState = {
+        if (gameState.status === 'active' && !gameState.buttonState.clicked && user) {
+            gameState.buttonState = {
                 clicked: true,
                 winnerId: user.userId,
                 winnerName: user.userName,
                 timestamp: Date.now()
             };
+            gameState.status = 'finished';
             
-         // Уведомляем всех пользователей КТО победитель
-io.emit('buttonClicked', buttonState);
-console.log(`🎯 Победитель: ${user.userName}`);
-            console.log(`Кнопка нажата пользователем: ${user.userName}`);
+            io.emit('buttonClicked', gameState.buttonState);
+            console.log(`🏆 Победитель: ${user.userName}`);
+            
+            // Автосброс через 10 секунд
+            setTimeout(resetGame, 10000);
         }
     });
     
-    // Отслеживаем отключение
     socket.on('disconnect', () => {
         onlineUsers.delete(socket.id);
         io.emit('onlineUpdate', onlineUsers.size);
@@ -94,7 +132,13 @@ console.log(`🎯 Победитель: ${user.userName}`);
     });
 });
 
+// Автозапуск при старте сервера
+setTimeout(() => {
+    if (gameState.status === 'waiting') {
+        startCountdown();
+    }
+}, 2000);
+
 server.listen(PORT, () => {
     console.log(`🚀 Сервер запущен на порту ${PORT}`);
-    console.log(`📱 Откройте: http://localhost:${PORT}`);
 });
